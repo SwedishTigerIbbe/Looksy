@@ -1,171 +1,206 @@
-import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-  Text,
-  Alert,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import Svg, { Path } from "react-native-svg";
-import { useNavigation } from "@react-navigation/native"; // Ny import för navigation
-import {
+  RecaptchaVerifier,
   sendEmailVerification,
   signInWithPhoneNumber,
-  RecaptchaVerifier,
 } from "firebase/auth";
-import { auth } from "./config/firebaseConfig"; // Uppdatera sökvägen till din Firebase-konfig
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { auth } from "./config/firebaseConfig";
 
-// Dina nya screens
-import BuyPage from "./src/screens/BuyPage";
+// Screens
 import AIOutfitBuilder from "./src/screens/AIOutfitBuilder";
-import Profile from "./src/screens/Profile";
-import Scan from "./src/screens/Scan";
+import BuyPage from "./src/screens/BuyPage";
 import Community from "./src/screens/Community";
+import LoginScreen from "./src/screens/LoginScreen";
+import ModelCreator from "./src/screens/ModelCreator";
 import MyOutfits from "./src/screens/MyOutfits";
 import Onboarding from "./src/screens/OnBoarding";
-import ModelCreator from "./src/screens/ModelCreator";
+import Profile from "./src/screens/Profile";
+import QuestionsScreen from "./src/screens/QuestionsScreen";
+import RegisterScreen from "./src/screens/RegisterScreen";
+import Scan from "./src/screens/Scan";
 
-// Uppdaterade ikoner (inklusive ny gul ikon för AI Outfit Builder)
-import BuyIcon from "./src/screens/components/BuyIcon"; // Skapa denna (se nedan)
+// Icon components du redan har
+import BuyIcon from "./src/screens/components/BuyIcon";
 import CommunityIcon from "./src/screens/components/CommunityIcon";
-import AIOutfitIcon from "./src/screens/components/AIOutfitIcon"; // Gul ikon (se nedan)
 import MyOutfitsIcon from "./src/screens/components/MyOutfitsIcon";
 import ProfileIcon from "./src/screens/components/ProfileIcon";
 
-// Nya importer för auth
-import { AuthProvider, useAuth } from "./context/AuthContext"; // Uppdatera sökvägen till AuthContext.js
-import LoginScreen from "./src/screens/LoginScreen"; // Uppdatera sökvägen
-import RegisterScreen from "./src/screens/RegisterScreen"; // Uppdatera sökvägen
-import QuestionsScreen from "./src/screens/QuestionsScreen"; // Uppdatera sökvägen
+// Auth context
+import { AuthProvider, useAuth } from "./context/AuthContext";
+
+// Inline SVG för galge + kamera
+import Svg, { Circle, Path } from "react-native-svg";
+
+function HangerIcon({ width = 26, height = 26, color = "#222222" }) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 18L12 12L20 18"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 12V10.5C12 9.7 12.5 9.3 13 9C13.6 8.6 14 8.3 14 7.5C14 6.7 13.3 6 12.3 6C11.4 6 10.7 6.6 10.6 7.4"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function CameraIcon({ size = 28, color = "#ffffff" }) {
+  // Klassisk liten kamera med objektiv [web:17][web:20]
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Kamerahus */}
+      <Path
+        d="M5 8.5C5 7.7 5.7 7 6.5 7H9L10.2 5.5H13.8L15 7H17.5C18.3 7 19 7.7 19 8.5V16C19 16.8 18.3 17.5 17.5 17.5H6.5C5.7 17.5 5 16.8 5 16V8.5Z"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Objektiv */}
+      <Circle cx="12" cy="12" r="3.2" stroke={color} strokeWidth={1.7} />
+      {/* Liten indikator */}
+      <Circle cx="8" cy="9" r="0.8" fill={color} />
+    </Svg>
+  );
+}
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+/* ---------- BOTTOM TABS (HUVUDAPP) ---------- */
+
 function MainTabs() {
-  const navigation = useNavigation(); // Använd hook för navigation
+  const navigation = useNavigation();
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.appBackground}>
       <Tab.Navigator
-        initialRouteName="AIOutfitBuilder"
         screenOptions={({ route }) => ({
+          headerShown: false,
           tabBarIcon: ({ focused, color, size }) => {
-            let IconComponent;
-            let iconSize = focused ? 30 : size; // Aktiv knapp blir större
-            let iconColor = focused ? "gold" : color; // Guld för aktiva, utom för huvudsidan
+            const tintColor = focused ? "#FFC700" : "#4A4A4A";
+            const iconSize = focused ? 28 : size;
 
             if (route.name === "BuyPage") {
-              IconComponent = BuyIcon;
-            } else if (route.name === "Community") {
-              IconComponent = CommunityIcon;
-            } else if (route.name === "AIOutfitBuilder") {
-              // Permanent rund padding för huvudsidan, alltid
               return (
-                <View style={styles.activeMainButton}>
-                  <AIOutfitIcon
-                    color={focused ? "black" : "black"}
-                    size={iconSize}
-                  />
-                </View>
+                <BuyIcon
+                  width={iconSize}
+                  height={iconSize}
+                  color={tintColor}
+                />
               );
-            } else if (route.name === "MyOutfits") {
-              IconComponent = MyOutfitsIcon;
-            } else if (route.name === "Profile") {
-              IconComponent = ProfileIcon;
             }
-
-            return IconComponent ? (
-              <IconComponent color={iconColor} size={iconSize} />
-            ) : null;
+            if (route.name === "Community") {
+              return (
+                <CommunityIcon
+                  width={iconSize}
+                  height={iconSize}
+                  color={tintColor}
+                />
+              );
+            }
+            if (route.name === "AIOutfitBuilder") {
+              // Mitten-tabben med galge
+              return (
+                <HangerIcon
+                  width={iconSize + 1}
+                  height={iconSize + 1}
+                  color={tintColor}
+                />
+              );
+            }
+            if (route.name === "MyOutfits") {
+              return (
+                <MyOutfitsIcon
+                  width={iconSize}
+                  height={iconSize}
+                  color={tintColor}
+                />
+              );
+            }
+            if (route.name === "Profile") {
+              return (
+                <ProfileIcon
+                  width={iconSize}
+                  height={iconSize}
+                  color={tintColor}
+                />
+              );
+            }
+            return null;
           },
-          tabBarActiveTintColor: "gold", // Guld för alla aktiva, utom huvudsidan som hanteras ovan
-          tabBarInactiveTintColor: "black",
-          tabBarStyle: {
-            backgroundColor: "#fff",
-            height: 90, // Lite större tabb
-            paddingBottom: 5, // Extra padding för bättre utseende
-            paddingTop: 8,
-          },
-          tabBarShowLabel: true, // Visa namn under ikonerna
-          tabBarLabelStyle: {
-            fontSize: 10, // Anpassa textstorlek
-            marginTop: 15, // Lite mellanrum mellan ikon och text
-          },
+          tabBarActiveTintColor: "#FFC700",
+          tabBarInactiveTintColor: "#4A4A4A",
+          tabBarStyle: styles.tabBar,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: styles.tabBarLabel,
         })}
       >
         <Tab.Screen
           name="BuyPage"
           component={BuyPage}
-          options={{ tabBarLabel: "Köp" }} // Anpassat namn
+          options={{ title: "Shop" }}
         />
         <Tab.Screen
           name="Community"
           component={Community}
-          options={{ tabBarLabel: "Community" }}
+          options={{ title: "Community" }}
         />
         <Tab.Screen
           name="AIOutfitBuilder"
           component={AIOutfitBuilder}
-          options={{
-            tabBarLabel: ({ focused }) => (
-              <Text
-                style={{
-                  fontSize: focused ? 14 : 12, // större bara när aktiv (valfritt)
-                  color: focused ? "gold" : "black",
-                  marginTop: 13,
-                  fontWeight: "500",
-                }}
-              >
-                LooksyAI
-              </Text>
-            ),
-          }}
+          options={{ title: "Outfits" }} // texten under galgen
         />
         <Tab.Screen
           name="MyOutfits"
           component={MyOutfits}
-          options={{ tabBarLabel: "Mina Outfits" }}
+          options={{ title: "Saved" }}
         />
         <Tab.Screen
           name="Profile"
           component={Profile}
-          options={{ tabBarLabel: "Profil" }}
+          options={{ title: "Profile" }}
         />
       </Tab.Navigator>
 
-      {/* Flytande svart rund knapp för Scan */}
+      {/* Svart kamera-knapp, tydlig kamera-ikon, ovanför navbar men inte nära galgen */}
       <TouchableOpacity
-        style={styles.floatingButton}
-        onPress={() => navigation.navigate("Scan")} // Navigera till Scan-sidan
+        style={styles.scanButton}
+        onPress={() => navigation.navigate("Scan")}
+        activeOpacity={0.9}
       >
-        <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-            stroke="white"
-            strokeWidth={2}
-          />
-          <Path
-            d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z"
-            stroke="white"
-            strokeWidth={2}
-          />
-        </Svg>
+        <CameraIcon size={26} color="#ffffff" />
       </TouchableOpacity>
     </View>
   );
 }
 
-// Uppdaterad VerificationFallbackScreen med knapp för att kontrollera status
+/* ---------- VERIFIERINGSFALLBACK ---------- */
+
 function VerificationFallbackScreen() {
-  const { user, setIsVerified, checkVerificationStatus } = useAuth(); // Lägg till checkVerificationStatus
+  const { user, setIsVerified, checkVerificationStatus } = useAuth();
   const [verificationMethod, setVerificationMethod] = useState("");
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || "");
   const [verificationCode, setVerificationCode] = useState("");
@@ -178,36 +213,33 @@ function VerificationFallbackScreen() {
     }
 
     try {
-      console.log("Försöker skicka verifiering via:", verificationMethod);
       if (verificationMethod === "email") {
         await sendEmailVerification(auth.currentUser);
-        console.log("Email-verifiering skickad till:", auth.currentUser.email);
         Alert.alert(
           "Verifiering skickad",
-          "Kontrollera din e-post och klicka på länken. Öppna appen igen efter verifiering."
+          "Kontrollera din e‑post och klicka på länken."
         );
       } else if (verificationMethod === "phone") {
         if (!phoneNumber) {
           Alert.alert("Fel", "Ange ditt telefonnummer.");
           return;
         }
-        console.log("Försöker skicka SMS till:", phoneNumber);
+
         const recaptchaVerifier = new RecaptchaVerifier(
           "recaptcha-container",
           {},
           auth
         );
+
         const result = await signInWithPhoneNumber(
           auth,
           phoneNumber,
           recaptchaVerifier
         );
         setConfirmationResult(result);
-        console.log("SMS skickat till:", phoneNumber);
         Alert.alert("Kod skickad", "Ange koden från SMS:et.");
       }
     } catch (error) {
-      console.error("Fel vid sändning:", error);
       Alert.alert("Fel", `Kunde inte skicka verifiering: ${error.message}`);
     }
   };
@@ -219,91 +251,96 @@ function VerificationFallbackScreen() {
     }
 
     try {
-      console.log("Bekräftar kod:", verificationCode);
       if (confirmationResult) {
         await confirmationResult.confirm(verificationCode);
         setIsVerified(true);
-        console.log("Verifiering lyckades");
         Alert.alert("Verifierad!", "Du är nu verifierad.");
       }
     } catch (error) {
-      console.error("Fel vid bekräftelse:", error);
       Alert.alert("Fel", `Ogiltig kod: ${error.message}`);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.centeredScreen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 20,
-        }}
+      <Text style={styles.title}>Väntar på verifiering</Text>
+      <Text style={styles.subtitle}>
+        Kontrollera din e‑post eller välj telefon för SMS‑kod.
+      </Text>
+
+      <View style={{ height: 20 }} />
+
+      <TouchableOpacity
+        style={[
+          styles.button,
+          verificationMethod === "email" && styles.buttonGhost,
+        ]}
+        onPress={() => setVerificationMethod("email")}
       >
-        <Text style={{ fontSize: 18, marginBottom: 20, textAlign: "center" }}>
-          Väntar på verifiering... Kontrollera din e-post eller ange kod.
-        </Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => setVerificationMethod("email")}
-        >
-          <Text>Verifiera via e-post</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => setVerificationMethod("phone")}
-        >
-          <Text>Verifiera via telefon</Text>
-        </TouchableOpacity>
-        {verificationMethod === "phone" && (
+        <Text style={styles.buttonText}>Verifiera via e‑post</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[
+          styles.button,
+          verificationMethod === "phone" && styles.buttonGhost,
+        ]}
+        onPress={() => setVerificationMethod("phone")}
+      >
+        <Text style={styles.buttonText}>Verifiera via telefon</Text>
+      </TouchableOpacity>
+
+      {verificationMethod === "phone" && (
+        <TextInput
+          style={styles.input}
+          placeholder="Telefonnummer"
+          placeholderTextColor="#999"
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          keyboardType="phone-pad"
+        />
+      )}
+
+      <TouchableOpacity
+        style={styles.buttonPrimary}
+        onPress={handleSendVerification}
+      >
+        <Text style={styles.buttonPrimaryText}>Skicka verifiering</Text>
+      </TouchableOpacity>
+
+      {confirmationResult && (
+        <>
           <TextInput
             style={styles.input}
-            placeholder="Telefonnummer"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
+            placeholder="Verifieringskod"
+            placeholderTextColor="#999"
+            value={verificationCode}
+            onChangeText={setVerificationCode}
+            keyboardType="number-pad"
           />
-        )}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleSendVerification}
-        >
-          <Text>Skicka verifiering</Text>
-        </TouchableOpacity>
-        {confirmationResult && (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Ange verifieringskod"
-              value={verificationCode}
-              onChangeText={setVerificationCode}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity style={styles.button} onPress={confirmCode}>
-              <Text>Bekräfta kod</Text>
-            </TouchableOpacity>
-          </>
-        )}
-        {/* Ny knapp för att kontrollera status manuellt */}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={checkVerificationStatus}
-        >
-          <Text>Kontrollera verifieringsstatus</Text>
-        </TouchableOpacity>
-        <View id="recaptcha-container" />
-      </View>
+          <TouchableOpacity style={styles.buttonPrimary} onPress={confirmCode}>
+            <Text style={styles.buttonPrimaryText}>Bekräfta kod</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      <TouchableOpacity
+        style={[styles.buttonGhostFull, { marginTop: 10 }]}
+        onPress={checkVerificationStatus}
+      >
+        <Text style={styles.buttonGhostFullText}>Kontrollera status</Text>
+      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
 
+/* ---------- NAVIGERING / FLOWS ---------- */
+
 function AppNavigator() {
-  const { user, loading, hasAnsweredQuestions, isVerified } = useAuth(); // Lägg till isVerified
+  const { user, loading, hasAnsweredQuestions, isVerified } = useAuth();
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
   useEffect(() => {
@@ -314,31 +351,25 @@ function AppNavigator() {
     checkOnboarding();
   }, []);
 
-  console.log(
-    "AppNavigator rendering - user:",
-    user,
-    "hasAnsweredQuestions:",
-    hasAnsweredQuestions,
-    "isVerified:",
-    isVerified, // Ny logg för verifiering
-    "loading:",
-    loading
-  );
-
-  if (loading) return <Text>Laddar...</Text>;
+  if (loading) {
+    return (
+      <View style={styles.centeredScreen}>
+        <Text style={styles.title}>LooksyAI</Text>
+        <Text style={styles.subtitle}>Laddar personliga rekommendationer...</Text>
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!hasCompletedOnboarding ? (
-        <Stack.Screen name="OnBoarding" component={Onboarding} />
+        <Stack.Screen name="Onboarding" component={Onboarding} />
       ) : !user ? (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
-      ) : user &&
-        (user.emailVerified || isVerified) &&
-        !hasAnsweredQuestions ? (
+      ) : user && (user.emailVerified || isVerified) && !hasAnsweredQuestions ? (
         <Stack.Screen name="Questions" component={QuestionsScreen} />
       ) : user && hasAnsweredQuestions ? (
         <>
@@ -347,7 +378,6 @@ function AppNavigator() {
           <Stack.Screen name="ModelCreator" component={ModelCreator} />
         </>
       ) : (
-        // Fallback: Användaren är inloggad men inte verifierad – visa förbättrad skärm
         <Stack.Screen
           name="VerificationFallback"
           component={VerificationFallbackScreen}
@@ -356,6 +386,8 @@ function AppNavigator() {
     </Stack.Navigator>
   );
 }
+
+/* ---------- ROOT APP ---------- */
 
 export default function App() {
   return (
@@ -367,47 +399,125 @@ export default function App() {
   );
 }
 
+/* ---------- STYLES ---------- */
+
 const styles = StyleSheet.create({
-  floatingButton: {
+  appBackground: {
+    flex: 1,
+    backgroundColor: "#F5F5F7", // ljus, nära vit/grå
+  },
+
+  centeredScreen: {
+    flex: 1,
+    backgroundColor: "#F5F5F7",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111111",
+    textAlign: "center",
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#6D6D6D",
+    textAlign: "center",
+  },
+
+  tabBar: {
     position: "absolute",
-    bottom: 100, // Ovanför navigationen (justera om nödvändigt)
-    right: 20,
-    backgroundColor: "black",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    left: 12,
+    right: 12,
+    bottom: 18,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 0,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    marginBottom: 6,
+    fontWeight: "500",
+  },
+
+  // Svart kamera-knapp, över navbar men långt över galge-ikonen
+  scanButton: {
+    position: "absolute",
+    bottom: 110, // tillräckligt högt för att inte overlappa mitten-tabben
+    alignSelf: "center",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#111111",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5, // Skugga för Android
-    shadowColor: "#000", // Skugga för iOS
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    elevation: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
-  activeMainButton: {
-    backgroundColor: "gold", // Vit bakgrund
-    borderRadius: 25, // Rund padding
-    padding: 8, // Padding runt ikonen
-    elevation: 3, // Skugga för Android
-    shadowColor: "#000", // Skugga för iOS
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
+
   button: {
-    backgroundColor: "gold",
-    padding: 10,
-    borderRadius: 5,
+    backgroundColor: "#E2E2E6",
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 10,
     alignItems: "center",
     marginVertical: 5,
-    width: 200,
+    minWidth: 230,
+  },
+  buttonGhost: {
+    borderWidth: 1,
+    borderColor: "#FFC700",
+  },
+  buttonText: {
+    fontWeight: "500",
+    color: "#111111",
+  },
+  buttonPrimary: {
+    backgroundColor: "#FFC700",
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+    minWidth: 230,
+  },
+  buttonPrimaryText: {
+    fontWeight: "600",
+    color: "#111111",
+  },
+  buttonGhostFull: {
+    borderWidth: 1,
+    borderColor: "#C0C0C4",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: "center",
+    minWidth: 230,
+  },
+  buttonGhostFullText: {
+    color: "#3C3C3C",
+    fontWeight: "500",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 10,
-    marginVertical: 5,
-    borderRadius: 5,
-    width: 200,
+    borderColor: "#D4D4D8",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginVertical: 6,
+    borderRadius: 10,
+    width: 260,
+    backgroundColor: "#FFFFFF",
+    color: "#111111",
   },
 });
